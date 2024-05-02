@@ -1,0 +1,3 @@
+Release issue for release of version {{ .Version }} of Red Hat OpenShift support for Windows Containers.
+
+Perform the steps outlined in the "Preparing the release for testing" section of the [Releasing the Red WMCO|https://docs.google.com/document/d/19oMK2F7PiYGLHoCtMMZ_hjrkOiTvibVD4H6yDf3tkRo/edit] guide.

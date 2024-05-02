@@ -1,0 +1,21 @@
+h1. Epic Goal
+ * {{ if .Zstream }}Z-Stream{{ else }}Major{{ end }} release of the Window Machine Config Operator
+
+h2. Schedule Dates
+ * Engineering Code Freeze: {{ .EngFreeze }}
+ * Final Build, errata ON_QA: {{ .QEHandover }}
+ * QE Testing Start: {{ .QEStart }}
+ * QE Testing End: {{ .QEEnd }}
+ * SP Push (GA): {{ .GA }}
+
+h2. Why is this important?
+ * Release the WMCO before the next major OCP version so an updated operator is available at OCP GA
+
+h2. Done Checklist
+ * WINC task for WMCO release is CLOSED
+ * OCPQE task for regression testing is CLOSED
+ * OSDOCS task for release notes is CLOSED
+ * Errata is SHIPPED LIVE ([https://errata.devel.redhat.com/package/show/windows-machine-config-operator-container])
+ * SPCLOUD task for release tracking is RESOLVED
+ * PLMCORE task for updating Support Lifecycle page is CLOSED
+ * OpenShift Layered Services - Release Schedule Smartsheet is updated ([https://app.smartsheet.com/sheets/2c877JxVhh4vRGr34GWvHRcFm5VH3G3Rppj3WCQ1?view=gantt])
