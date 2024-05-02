@@ -86,10 +86,10 @@ type Summary struct {
 	Synopsis string
 }
 
-func List() ([]Summary, error) {
+func List(synopsisSearch string) ([]Summary, error) {
 	// Don't want to figure out a safe library for SPNEGO, so just using curl instead
 	apiURL := "https://errata.devel.redhat.com/api/v1/"
-	wmcoErrataSearch := fmt.Sprintf("%s/erratum/search?product[]=79&show_state_IN_PUSH=1&show_state_NEW_FILES=1&show_state_PUSH_READY=1&show_state_QE=1&show_state_REL_PREP=1&synopsis_text=Windows+Containers", apiURL)
+	wmcoErrataSearch := fmt.Sprintf("%s/erratum/search?product[]=79&show_state_IN_PUSH=1&show_state_NEW_FILES=1&show_state_PUSH_READY=1&show_state_QE=1&show_state_REL_PREP=1&synopsis_text=%s", apiURL, synopsisSearch)
 	curlCmd := exec.Command("curl", "--negotiate", "--user", ":", wmcoErrataSearch)
 	out, err := curlCmd.Output()
 	if err != nil {

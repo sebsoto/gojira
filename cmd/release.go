@@ -5,6 +5,8 @@ import (
 )
 
 var (
+	project      string
+	errataSearch string
 	// releaseCmd represents the release command
 	releaseCmd = &cobra.Command{
 		Use:   "release",
@@ -15,14 +17,6 @@ var (
 
 func init() {
 	rootCmd.AddCommand(releaseCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// releaseCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// releaseCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	releaseCmd.PersistentFlags().StringVar(&project, "project", "", "JIRA project")
+	releaseCmd.MarkPersistentFlagRequired("project")
 }

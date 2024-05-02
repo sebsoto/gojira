@@ -98,8 +98,8 @@ func (r *release) createReleaseEpic() (string, error) {
 	return response.Key, nil
 }
 
-func (r *release) addErrataLink(key string) error {
-	errataList, err := errata.List()
+func (r *release) addErrataLink(key, synopsisSearch string) error {
+	errataList, err := errata.List(synopsisSearch)
 	if err != nil {
 		return fmt.Errorf("error listing errata: %w", err)
 	}
@@ -186,13 +186,14 @@ func nextPatch(version string) (string, error) {
 func strPtr(str string) *string {
 	return &str
 }
-func CreateIssues(version string, majorRelease bool, releaseDate time.Time) error {
+
+func CreateIssues(jiraProject, errataSearch, version string, majorRelease bool, releaseDate time.Time) error {
 	r := newRelease(majorRelease, version, releaseDate)
 	epicKey, err := r.createReleaseEpic()
 	if err != nil {
 		return err
 	}
-	err = r.addErrataLink(epicKey)
+	err = r.addErrataLink(epicKey, errataSearch)
 	if err != nil {
 		fmt.Printf("error adding errata link to epic, skipping: %s\n", err)
 	}

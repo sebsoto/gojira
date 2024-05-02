@@ -14,7 +14,7 @@ var listErrataCmd = &cobra.Command{
 	Short: "Lists pending errata",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		errataList, err := errata.List()
+		errataList, err := errata.List("Windows+Containers")
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)

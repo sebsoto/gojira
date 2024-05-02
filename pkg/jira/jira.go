@@ -71,19 +71,9 @@ func Search(query string) ([]Issue, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(body))
 	var searchResults IssueSearch
 	if err = json.Unmarshal(body, &searchResults); err != nil {
 		return nil, err
-	}
-	for _, issue := range searchResults.Issues {
-		links, err := GetRemoteLinks(issue.Key)
-		if err != nil {
-			return nil, err
-		}
-		if len(links) > 0 {
-			fmt.Printf("%s: %s\n", issue.Key, links[0].Object.URL)
-		}
 	}
 	return searchResults.Issues, nil
 }
