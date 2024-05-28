@@ -75,7 +75,7 @@ func (r *release) createReleaseEpic() (string, error) {
 				ID:  nil,
 				Key: strPtr("WINC"),
 			},
-			IssueType: jira.IssueType{Name: "Epic"},
+			IssueType: jira.IssueType{Name: jira.EpicIssue},
 			TargetVersion: []jira.TargetVersion{
 				{
 					Name: fmt.Sprintf("WMCO %s", r.Version),
@@ -88,7 +88,7 @@ func (r *release) createReleaseEpic() (string, error) {
 			},
 			EpicName: fmt.Sprintf("WMCO %s Release", r.Version),
 			Labels:   []string{"OperatorProductization"},
-			Priority: &jira.Priority{Name: "Major"},
+			Priority: &jira.Priority{Name: jira.MajorPriority},
 		},
 	}
 	response, err := jira.CreateIssue(&newIssue)
@@ -134,8 +134,8 @@ func (r *release) createPostReleaseTask() error {
 				ID:  nil,
 				Key: strPtr("WINC"),
 			},
-			IssueType: jira.IssueType{Name: "Task"},
-			Priority:  &jira.Priority{Name: "Major"},
+			IssueType: jira.IssueType{Name: jira.TaskIssue},
+			Priority:  &jira.Priority{Name: jira.MajorPriority},
 		},
 	}
 	response, err := jira.CreateIssue(&newStory)
@@ -163,10 +163,10 @@ func (r *release) createReleaseTask(epicTicketID string) error {
 				ID:  nil,
 				Key: strPtr("WINC"),
 			},
-			IssueType: jira.IssueType{Name: "Task"},
+			IssueType: jira.IssueType{Name: jira.TaskIssue},
 			EpicLink:  epicTicketID,
 			Labels:    []string{"docs", "qe", "release"},
-			Priority:  &jira.Priority{Name: "Major"},
+			Priority:  &jira.Priority{Name: jira.MajorPriority},
 		},
 	}
 	_, err = jira.CreateIssue(&newStory)

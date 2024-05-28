@@ -12,6 +12,17 @@ import (
 	"strings"
 )
 
+type IssueTypeName string
+
+const (
+	EpicIssue IssueTypeName = "Epic"
+	TaskIssue IssueTypeName = "Task"
+)
+
+type IssuePriorityName string
+
+const MajorPriority IssuePriorityName = "Major"
+
 type IssueSearch struct {
 	Issues []Issue `json:"issues"`
 }
@@ -37,7 +48,7 @@ type IssueFields struct {
 }
 
 type Priority struct {
-	Name string `json:"name"`
+	Name IssuePriorityName `json:"name"`
 }
 
 type TargetVersion struct {
@@ -54,7 +65,7 @@ type Security struct {
 }
 
 type IssueType struct {
-	Name string `json:"name"`
+	Name IssueTypeName `json:"name"`
 }
 
 type IssueCreationResponse struct {
