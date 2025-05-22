@@ -3,12 +3,11 @@ package release
 import (
 	"bytes"
 	"fmt"
-	"strconv"
-	"strings"
 	"text/template"
 	"time"
 
-	"github.com/sebsoto/gojira/pkg/errata"
+	releasev1alpha1 "github.com/konflux-ci/release-service/api/v1alpha1"
+
 	"github.com/sebsoto/gojira/pkg/jira"
 )
 
@@ -20,6 +19,8 @@ type release struct {
 	QEEnd      string
 	GA         string
 	Version    string
+	Project    string
+	Release    *releasev1alpha1.Release
 }
 
 func formattedDate(t time.Time) string {
@@ -35,7 +36,7 @@ func roundDownToWeekday(t time.Time) time.Time {
 	return t
 }
 
-func newRelease(patch bool, version string, releaseDate time.Time) *release {
+func newRelease(patch bool, version string, releaseDate time.Time, project string) *release {
 	day := 24 * time.Hour
 	qePeriod := 10 * day
 	if patch {
@@ -53,6 +54,7 @@ func newRelease(patch bool, version string, releaseDate time.Time) *release {
 		GA:         formattedDate(releaseDate),
 		Version:    version,
 		Zstream:    patch,
+		Project:    project,
 	}
 }
 
@@ -73,7 +75,7 @@ func (r *release) createReleaseEpic() (string, error) {
 			Description: epicDescription.String(),
 			Project: jira.Project{
 				ID:  nil,
-				Key: strPtr("WINC"),
+				Key: &r.Project,
 			},
 			IssueType: jira.IssueType{Name: jira.EpicIssue},
 			TargetVersion: []jira.TargetVersion{
@@ -98,53 +100,6 @@ func (r *release) createReleaseEpic() (string, error) {
 	return response.Key, nil
 }
 
-func (r *release) addErrataLink(key, synopsisSearch string) error {
-	errataList, err := errata.List(synopsisSearch)
-	if err != nil {
-		return fmt.Errorf("error listing errata: %w", err)
-	}
-	var match *errata.Summary
-	for _, e := range errataList {
-		if strings.Contains(e.Synopsis, r.Version) {
-			match = &e
-			break
-		}
-	}
-	if match == nil {
-		return fmt.Errorf("no matching errata found")
-	}
-	fmt.Printf("linking errata %d:%s to epic %s", match.ID, match.Synopsis, key)
-	return jira.AddRemoteLink(key, errata.URL(match.ID), match.Synopsis)
-}
-
-// createReleaseEpic creates the post-release task, and returns the key, e.g. WINC-1111
-func (r *release) createPostReleaseTask() error {
-	nextVersion, err := nextPatch(r.Version)
-	if err != nil {
-		return err
-	}
-	description := fmt.Sprintf("Post Release issue for release of version %s of Red Hat OpenShift for Windows Containers.\n\n"+
-		"Prepare for the next release, %s.\n\n"+
-		"Post release work tasks are documented in the process doc [Releasing Red Hat WMCO|https://docs.google.com/document/d/19oMK2F7PiYGLHoCtMMZ_hjrkOiTvibVD4H6yDf3tkRo]", r.Version, nextVersion)
-	newStory := jira.Issue{
-		Fields: jira.IssueFields{
-			Summary:     fmt.Sprintf("Red Hat OpenShift for Windows Containers %s Post Release", r.Version),
-			Description: description,
-			Project: jira.Project{
-				ID:  nil,
-				Key: strPtr("WINC"),
-			},
-			IssueType: jira.IssueType{Name: jira.TaskIssue},
-			Priority:  &jira.Priority{Name: jira.MajorPriority},
-		},
-	}
-	response, err := jira.CreateIssue(&newStory)
-	if err == nil {
-		fmt.Printf("%+v\n", response)
-	}
-	return err
-}
-
 func (r *release) createReleaseTask(epicTicketID string) error {
 	t, err := template.New("release_task_template").ParseFiles("/home/sebsoto/code/openshift/gojira/templates/release_task_template")
 	if err != nil {
@@ -161,7 +116,7 @@ func (r *release) createReleaseTask(epicTicketID string) error {
 			Description: description.String(),
 			Project: jira.Project{
 				ID:  nil,
-				Key: strPtr("WINC"),
+				Key: &r.Project,
 			},
 			IssueType: jira.IssueType{Name: jira.TaskIssue},
 			EpicLink:  epicTicketID,
@@ -173,35 +128,13 @@ func (r *release) createReleaseTask(epicTicketID string) error {
 	return err
 }
 
-func nextPatch(version string) (string, error) {
-	versionSplit := strings.Split(version, ".")
-	patch, err := strconv.Atoi(versionSplit[len(versionSplit)-1])
-	if err != nil {
-		return "", err
-	}
-	versionSplit[len(versionSplit)-1] = strconv.Itoa(patch + 1)
-	return strings.Join(versionSplit, "."), nil
-}
-
-func strPtr(str string) *string {
-	return &str
-}
-
-func CreateIssues(jiraProject, errataSearch, version string, majorRelease bool, releaseDate time.Time) error {
-	r := newRelease(majorRelease, version, releaseDate)
+func CreateIssues(jiraProject, version string, majorRelease bool, releaseDate time.Time) error {
+	r := newRelease(majorRelease, version, releaseDate, jiraProject)
 	epicKey, err := r.createReleaseEpic()
 	if err != nil {
 		return err
 	}
-	err = r.addErrataLink(epicKey, errataSearch)
-	if err != nil {
-		fmt.Printf("error adding errata link to epic, skipping: %s\n", err)
-	}
 	err = r.createReleaseTask(epicKey)
-	if err != nil {
-		return err
-	}
-	err = r.createPostReleaseTask()
 	if err != nil {
 		return err
 	}

@@ -5,8 +5,7 @@ import (
 )
 
 var (
-	project      string
-	errataSearch string
+	project string
 	// releaseCmd represents the release command
 	releaseCmd = &cobra.Command{
 		Use:   "release",

@@ -33,7 +33,7 @@ var (
 				fmt.Fprintf(os.Stderr, "version is not a valid semver")
 				os.Exit(1)
 			}
-			if err = release.CreateIssues(project, errataSearch, version, majorRelease, parsedDate); err != nil {
+			if err = release.CreateIssues(project, version, majorRelease, parsedDate); err != nil {
 				fmt.Fprintf(os.Stderr, "%s", err)
 				os.Exit(1)
 			}
@@ -49,6 +49,4 @@ func init() {
 	newCmd.MarkFlagRequired("date")
 	newCmd.Flags().BoolVar(&majorRelease, "major", false, "Indicate this is a major release")
 	newCmd.MarkFlagRequired("major")
-	newCmd.PersistentFlags().StringVar(&errataSearch, "errata-search", "", "String to search for in errata synopsis_text. This is used to find the errata for the release.")
-	newCmd.MarkPersistentFlagRequired("errata-search")
 }
