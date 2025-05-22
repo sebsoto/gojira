@@ -5,8 +5,8 @@ import (
 )
 
 var (
-	project      string
-	errataSearch string
+	project     string
+	releaseplan string
 	// releaseCmd represents the release command
 	releaseCmd = &cobra.Command{
 		Use:   "release",
@@ -19,4 +19,8 @@ func init() {
 	rootCmd.AddCommand(releaseCmd)
 	releaseCmd.PersistentFlags().StringVar(&project, "project", "", "JIRA project")
 	releaseCmd.MarkPersistentFlagRequired("project")
+	releaseCmd.PersistentFlags().StringVar(&releaseplan, "releaseplan", "", "Konflux releaseplan")
+	releaseCmd.MarkFlagRequired("releaseplan")
+	releaseCmd.PersistentFlags().StringVar(&version, "version", "", "Semver of the release")
+	releaseCmd.MarkFlagRequired("version")
 }

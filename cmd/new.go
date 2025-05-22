@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/sebsoto/gojira/pkg/konflux"
 	"os"
 	"strings"
 	"time"
@@ -33,7 +34,12 @@ var (
 				fmt.Fprintf(os.Stderr, "version is not a valid semver")
 				os.Exit(1)
 			}
-			if err = release.CreateIssues(project, errataSearch, version, majorRelease, parsedDate); err != nil {
+			rel, err := konflux.NewRelease(releaseplan, version, []string{project, "OCPBUGS"})
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error creating release: %s\n", err)
+				os.Exit(1)
+			}
+			if err = release.CreateIssues(project, version, majorRelease, parsedDate, rel); err != nil {
 				fmt.Fprintf(os.Stderr, "%s", err)
 				os.Exit(1)
 			}
@@ -43,12 +49,8 @@ var (
 
 func init() {
 	releaseCmd.AddCommand(newCmd)
-	newCmd.Flags().StringVar(&version, "version", "", "Semver of the release")
-	newCmd.MarkFlagRequired("version")
 	newCmd.Flags().StringVar(&date, "date", "", "Planned date of the release")
 	newCmd.MarkFlagRequired("date")
 	newCmd.Flags().BoolVar(&majorRelease, "major", false, "Indicate this is a major release")
 	newCmd.MarkFlagRequired("major")
-	newCmd.PersistentFlags().StringVar(&errataSearch, "errata-search", "", "String to search for in errata synopsis_text. This is used to find the errata for the release.")
-	newCmd.MarkPersistentFlagRequired("errata-search")
 }

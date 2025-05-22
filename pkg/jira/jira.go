@@ -37,6 +37,7 @@ type IssueFields struct {
 	Description   string          `json:"description"`
 	Project       Project         `json:"project"`
 	IssueType     IssueType       `json:"issuetype"`
+	FixVersions   []FixVersion    `json:"fixVersions,omitempty"`
 	TargetVersion []TargetVersion `json:"customfield_12319940,omitempty"`
 	StartDate     string          `json:"customfield_12313941,omitempty"`
 	EndDate       string          `json:"customfield_12313942,omitempty"`
@@ -51,6 +52,9 @@ type Priority struct {
 	Name IssuePriorityName `json:"name"`
 }
 
+type FixVersion struct {
+	Name string `json:"name"`
+}
 type TargetVersion struct {
 	Name string `json:"version"`
 }
@@ -184,6 +188,20 @@ func CreateIssue(issue *Issue) (*IssueCreationResponse, error) {
 	var response IssueCreationResponse
 	err = json.Unmarshal(res, &response)
 	return &response, err
+}
+
+func GetIssue(issueKey string) (*Issue, error) {
+	results, err := Search("key = " + issueKey)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) == 0 {
+		return nil, fmt.Errorf("issue not found")
+	}
+	if len(results) > 1 {
+		return nil, fmt.Errorf("unexpected issues found")
+	}
+	return &results[0], nil
 }
 
 // apiRequest makes the request, returns the response body
