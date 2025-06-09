@@ -2,6 +2,7 @@ package release
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"sigs.k8s.io/yaml"
 	"text/template"
@@ -13,15 +14,12 @@ import (
 )
 
 type release struct {
-	Zstream    bool
-	EngFreeze  string
-	QEHandover string
-	QEStart    string
-	QEEnd      string
-	GA         string
-	Version    string
-	Project    string
-	Release    string
+	Zstream      bool
+	HandoverDate string
+	GADate       string
+	Version      string
+	Project      string
+	Release      string
 }
 
 func formattedDate(t time.Time) string {
@@ -44,20 +42,15 @@ func newRelease(patch bool, version string, releaseDate time.Time, project strin
 		qePeriod = 7 * day
 	}
 	qeEndDate := roundDownToWeekday(releaseDate.Add(-day))
-	qeStartDate := roundDownToWeekday(qeEndDate.Add(-qePeriod))
-	qeHandOverDate := roundDownToWeekday(qeStartDate.Add(-day))
-	engFreeze := roundDownToWeekday(qeHandOverDate.Add(-day))
+	qeHandoverDate := roundDownToWeekday(qeEndDate.Add(-qePeriod))
 	releaseString, _ := yaml.Marshal(konfluxRelease)
 	return &release{
-		EngFreeze:  formattedDate(engFreeze),
-		QEHandover: formattedDate(qeHandOverDate),
-		QEStart:    formattedDate(qeStartDate),
-		QEEnd:      formattedDate(qeEndDate),
-		GA:         formattedDate(releaseDate),
-		Version:    version,
-		Zstream:    patch,
-		Project:    project,
-		Release:    string(releaseString),
+		HandoverDate: formattedDate(qeHandoverDate),
+		GADate:       formattedDate(releaseDate),
+		Version:      version,
+		Zstream:      patch,
+		Project:      project,
+		Release:      string(releaseString),
 	}
 }
 
@@ -86,8 +79,6 @@ func (r *release) createReleaseEpic() (string, error) {
 					Name: fmt.Sprintf("WMCO %s", r.Version),
 				},
 			},
-			StartDate: r.EngFreeze,
-			EndDate:   r.GA,
 			Security: &jira.Security{
 				Name: "Red Hat Employee",
 			},
@@ -142,4 +133,32 @@ func CreateIssues(jiraProject, version string, majorRelease bool, releaseDate ti
 		return err
 	}
 	return nil
+}
+
+type fieldsUpdater struct {
+	Fields fields `json:"fields"`
+}
+
+type fields struct {
+	Description string `json:"description"`
+}
+
+func UpdateRelease(issue, jiraProject, version string, majorRelease bool, releaseDate time.Time, release *releasev1alpha1.Release) error {
+	r := newRelease(majorRelease, version, releaseDate, jiraProject, release)
+	t, err := template.New("release_task_template").ParseFiles("/home/sebsoto/code/openshift/gojira/templates/release_task_template")
+	if err != nil {
+		return err
+	}
+	description := new(bytes.Buffer)
+	err = t.Execute(description, r)
+	if err != nil {
+		return err
+	}
+	update := fieldsUpdater{fields{Description: description.String()}}
+	updateBody, err := json.Marshal(update)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("Updating ticket with description:\n%s\n", string(updateBody))
+	return jira.UpdateIssue(issue, string(updateBody))
 }

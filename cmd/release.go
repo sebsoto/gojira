@@ -19,8 +19,4 @@ func init() {
 	rootCmd.AddCommand(releaseCmd)
 	releaseCmd.PersistentFlags().StringVar(&project, "project", "", "JIRA project")
 	releaseCmd.MarkPersistentFlagRequired("project")
-	releaseCmd.PersistentFlags().StringVar(&releaseplan, "releaseplan", "", "Konflux releaseplan")
-	releaseCmd.MarkFlagRequired("releaseplan")
-	releaseCmd.PersistentFlags().StringVar(&version, "version", "", "Semver of the release")
-	releaseCmd.MarkFlagRequired("version")
 }

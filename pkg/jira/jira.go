@@ -190,6 +190,18 @@ func CreateIssue(issue *Issue) (*IssueCreationResponse, error) {
 	return &response, err
 }
 
+func UpdateIssue(key, updateBody string) error {
+	updateIssueURL, err := constructURL("/issue/"+key, nil)
+	if err != nil {
+		return err
+	}
+	_, err = apiRequest(http.MethodPut, updateIssueURL.String(), []byte(updateBody))
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func GetIssue(issueKey string) (*Issue, error) {
 	results, err := Search("key = " + issueKey)
 	if err != nil {

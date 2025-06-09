@@ -45,7 +45,7 @@ type issue struct {
 	Source string `json:"source"`
 }
 
-func NewRelease(releaseplan, version string, jiraProjects []string) (*releasev1alpha1.Release, error) {
+func NewRelease(releaseplan, version string, jiraProjects []string, branchCommit string) (*releasev1alpha1.Release, error) {
 	config, err := clientconfig.GetConfig()
 	if err != nil {
 		return nil, err
@@ -109,9 +109,12 @@ func NewRelease(releaseplan, version string, jiraProjects []string) (*releasev1a
 	}
 	fmt.Printf("-----\n\n")
 
-	fromSHA, err := git.FindReleaseTail(repo, version)
-	if err != nil {
-		return nil, err
+	fromSHA := branchCommit
+	if branchCommit == "" {
+		fromSHA, err = git.FindReleaseTail(repo, version)
+		if err != nil {
+			return nil, err
+		}
 	}
 	commits, err := repo.ListCommits(snapshotCommit, fromSHA, git.IsMerge)
 	if err != nil {
