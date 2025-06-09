@@ -34,7 +34,7 @@ var (
 				fmt.Fprintf(os.Stderr, "version is not a valid semver")
 				os.Exit(1)
 			}
-			rel, err := konflux.NewRelease(releaseplan, version, []string{project, "OCPBUGS"})
+			rel, err := konflux.NewRelease(releaseplan, version, []string{project, "OCPBUGS"}, "")
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error creating release: %s\n", err)
 				os.Exit(1)
