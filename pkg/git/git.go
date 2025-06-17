@@ -66,7 +66,7 @@ func (r *GithubRepo) GetTags() ([]Tag, error) {
 
 func (r *GithubRepo) ListCommits(startSHA, endSHA string, filter FilterFunction) ([]*github.Commit, error) {
 	var commitList []*github.Commit
-	commits, _, err := r.client.Repositories.ListCommits(context.Background(), r.owner, r.name, &github.CommitsListOptions{
+	commits, resp, err := r.client.Repositories.ListCommits(context.Background(), r.owner, r.name, &github.CommitsListOptions{
 		SHA: startSHA,
 		ListOptions: github.ListOptions{
 			Page:    0,
@@ -82,6 +82,26 @@ func (r *GithubRepo) ListCommits(startSHA, endSHA string, filter FilterFunction)
 		}
 		if !filter(commit.GetCommit()) {
 			commitList = append(commitList, commit.GetCommit())
+		}
+	}
+	for nextPage := resp.NextPage; nextPage != resp.LastPage; {
+		commits, resp, err = r.client.Repositories.ListCommits(context.Background(), r.owner, r.name, &github.CommitsListOptions{
+			SHA: startSHA,
+			ListOptions: github.ListOptions{
+				Page:    nextPage,
+				PerPage: 100,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, commit := range commits {
+			if commit.GetSHA() == endSHA {
+				return commitList, nil
+			}
+			if !filter(commit.GetCommit()) {
+				commitList = append(commitList, commit.GetCommit())
+			}
 		}
 	}
 	return commitList, nil
