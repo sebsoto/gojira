@@ -3,17 +3,23 @@ package git
 import (
 	"context"
 	"fmt"
-	"github.com/google/go-github/v72/github"
 	"net/url"
 	"strconv"
 	"strings"
+
+	"github.com/google/go-github/v72/github"
 )
 
 type FilterFunction func(*github.Commit) bool
 
+type Commit interface {
+	GetMessage() string
+	GetSHA() string
+}
+
 type Repo interface {
 	GetTags() ([]Tag, error)
-	ListCommits(string, string, FilterFunction) ([]*github.Commit, error)
+	ListCommits(string, string, FilterFunction) ([]Commit, error)
 }
 
 type Tag struct {
@@ -64,8 +70,8 @@ func (r *GithubRepo) GetTags() ([]Tag, error) {
 	return tagList, nil
 }
 
-func (r *GithubRepo) ListCommits(startSHA, endSHA string, filter FilterFunction) ([]*github.Commit, error) {
-	var commitList []*github.Commit
+func (r *GithubRepo) ListCommits(startSHA, endSHA string, filter FilterFunction) ([]Commit, error) {
+	var commitList []Commit
 	commits, resp, err := r.client.Repositories.ListCommits(context.Background(), r.owner, r.name, &github.CommitsListOptions{
 		SHA: startSHA,
 		ListOptions: github.ListOptions{

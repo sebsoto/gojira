@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/sebsoto/gojira/pkg/konflux"
 	"github.com/spf13/cobra"
-	"os"
 )
+
+var namespace string
 
 var (
 	// checkCmd represents the new command
@@ -15,11 +18,13 @@ var (
 		Long:  ``,
 		Run: func(cmd *cobra.Command, args []string) {
 			projects := []string{project, "OCPBUGS"}
-			_, err := konflux.NewRelease(releaseplan, version, projects, "")
+			release, err := konflux.NewRelease(namespace, releaseplan, version, projects, "")
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err.Error())
 				os.Exit(1)
 			}
+			release.PrintContents()
+			fmt.Printf("\n%s\n", release.ReleaseYAML())
 		},
 	}
 )
@@ -30,4 +35,6 @@ func init() {
 	checkCmd.MarkFlagRequired("releaseplan")
 	checkCmd.Flags().StringVar(&version, "version", "", "Semver of the release")
 	checkCmd.MarkFlagRequired("version")
+	checkCmd.Flags().StringVar(&namespace, "namespace", "", "Konflux namespace")
+	checkCmd.MarkFlagRequired("namespace")
 }

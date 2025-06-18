@@ -19,14 +19,24 @@ import (
 	clientconfig "sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/yaml"
 
-	"github.com/google/go-github/v72/github"
 	"github.com/sebsoto/gojira/pkg/git"
 	"github.com/sebsoto/gojira/pkg/jira"
 )
 
+// Release contains all information required to describe an upcoming release
+type Release struct {
+	*releasev1alpha1.Release
+	MissingMerges []git.Commit
+	Merges        []git.Commit
+	Issues        []*jira.Issue
+	*applicationv1alpha1.Snapshot
+	Sha string
+}
+
 type releaseData struct {
 	ReleaseNotes releaseNotes `json:"releaseNotes"`
 }
+
 type releaseNotes struct {
 	Type   string `json:"type"`
 	CVEs   []cve  `json:"cves"`
@@ -45,7 +55,7 @@ type issue struct {
 	Source string `json:"source"`
 }
 
-func NewRelease(releaseplan, version string, jiraProjects []string, branchCommit string) (*releasev1alpha1.Release, error) {
+func NewRelease(namespace, releaseplan, version string, jiraProjects []string, branchCommit string) (*Release, error) {
 	config, err := clientconfig.GetConfig()
 	if err != nil {
 		return nil, err
@@ -57,7 +67,7 @@ func NewRelease(releaseplan, version string, jiraProjects []string, branchCommit
 	releasev1alpha1.AddToScheme(c.Scheme())
 	applicationv1alpha1.AddToScheme(c.Scheme())
 	var rp releasev1alpha1.ReleasePlan
-	err = c.Get(context.Background(), types.NamespacedName{Name: releaseplan, Namespace: "windows-machine-conf-tenant"}, &rp)
+	err = c.Get(context.Background(), types.NamespacedName{Name: releaseplan, Namespace: namespace}, &rp)
 	if err != nil {
 		return nil, err
 	}
@@ -70,10 +80,8 @@ func NewRelease(releaseplan, version string, jiraProjects []string, branchCommit
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Latest release is: %s\n", lastRelease.GetName())
-	fmt.Printf("Uses snapshot: %s\n", lastRelease.Spec.Snapshot)
 	var snap applicationv1alpha1.Snapshot
-	err = c.Get(context.Background(), types.NamespacedName{Name: lastRelease.Spec.Snapshot, Namespace: "windows-machine-conf-tenant"}, &snap)
+	err = c.Get(context.Background(), types.NamespacedName{Name: lastRelease.Spec.Snapshot, Namespace: namespace}, &snap)
 	if err != nil {
 		return nil, err
 	}
@@ -85,10 +93,8 @@ func NewRelease(releaseplan, version string, jiraProjects []string, branchCommit
 			snapshotCommit = component.Source.GitSource.Revision
 		}
 	}
-	fmt.Printf("Snapshot timestamp: %v\n", snap.GetCreationTimestamp())
-	fmt.Printf("Snapshot commit: %v\n", snapshotCommit)
 	var component applicationv1alpha1.Component
-	err = c.Get(context.Background(), types.NamespacedName{Name: componentName, Namespace: "windows-machine-conf-tenant"}, &component)
+	err = c.Get(context.Background(), types.NamespacedName{Name: componentName, Namespace: namespace}, &component)
 	if err != nil {
 		return nil, err
 	}
@@ -98,16 +104,10 @@ func NewRelease(releaseplan, version string, jiraProjects []string, branchCommit
 		return nil, err
 	}
 
-	mergesSinceRelease, err := repo.ListCommits(component.Spec.Source.GitSource.Revision, snapshotCommit, git.IsMerge)
+	mergesSinceSnapshot, err := repo.ListCommits(component.Spec.Source.GitSource.Revision, snapshotCommit, git.IsMerge)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("-----\n\n")
-	fmt.Printf("%d recent merges not included in release:\n", len(mergesSinceRelease))
-	for i, mergeCommit := range mergesSinceRelease {
-		fmt.Printf("%d: %s\n", i+1, mergeCommit.GetMessage())
-	}
-	fmt.Printf("-----\n\n")
 
 	fromSHA := branchCommit
 	if branchCommit == "" {
@@ -125,29 +125,52 @@ func NewRelease(releaseplan, version string, jiraProjects []string, branchCommit
 		return nil, err
 	}
 
-	// Print contents
-	fmt.Printf("Jira issues included in this release:\n")
-	w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
-	fmt.Fprintln(w, "Issue\tSummary\tFix Version")
-	fmt.Fprintln(w, "___\t___\t___")
-	for _, ticket := range jiraTickets {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", ticket.Key, ticket.Fields.Summary, ticket.Fields.FixVersions)
-	}
-	w.Flush()
-	fmt.Printf("-----\n\n")
-
 	r, err := newRelease(componentName, jiraTickets, rp.GetName(), snap.GetName())
 	if err != nil {
 		return nil, err
 	}
 
-	yamlNotes, err := yaml.Marshal(r)
-	if err != nil {
-		return nil, err
+	release := &Release{
+		Release:       r,
+		MissingMerges: mergesSinceSnapshot,
+		Merges:        commits,
+		Issues:        jiraTickets,
+		Sha:           snapshotCommit,
+		Snapshot:      &snap,
 	}
-	fmt.Println(string(yamlNotes))
 
-	return r, nil
+	return release, nil
+}
+
+func (r *Release) PrintContents() {
+	fmt.Printf("Snapshot timestamp: %v\n", r.Snapshot.GetCreationTimestamp())
+	fmt.Printf("Snapshot commit: %v\n", r.Sha)
+	fmt.Printf("-----\n\n")
+	fmt.Printf("%d recent merges not included in release:\n", len(r.MissingMerges))
+	for i, mergeCommit := range r.MissingMerges {
+		fmt.Printf("%d: %s\n", i+1, mergeCommit.GetMessage())
+	}
+	fmt.Printf("-----\n\n")
+	fmt.Printf("Jira issues included in this release:\n")
+	w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+	fmt.Fprintln(w, "Issue\tSummary\tFix Version")
+	fmt.Fprintln(w, "___\t___\t___")
+	for _, ticket := range r.Issues {
+		fmt.Fprintf(w, "%s\t%s\t%s\n", ticket.Key, ticket.Fields.Summary, ticket.Fields.FixVersions)
+	}
+	w.Flush()
+	fmt.Printf("-----\n\n")
+
+}
+
+func (r *Release) ReleaseYAML() string {
+	yamlNotes, err := yaml.Marshal(r.Release)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
+	// yaml.Marshal seems to ignore omitempty causing the empty status to be added which should be trimmed
+	return strings.Split(string(yamlNotes), "\nstatus:\n")[0]
 }
 
 func latestRelease(relList []releasev1alpha1.Release) (*releasev1alpha1.Release, error) {
@@ -208,7 +231,9 @@ func newRelease(component string, jiraIssues []*jira.Issue, releaseplan, snapsho
 			Kind:       "Release",
 			APIVersion: releasev1alpha1.GroupVersion.String(),
 		},
-		ObjectMeta: metav1.ObjectMeta{},
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: fmt.Sprintf("%s-", releaseplan),
+		},
 		Spec: releasev1alpha1.ReleaseSpec{
 			Snapshot:    snapshot,
 			ReleasePlan: releaseplan,
@@ -237,7 +262,7 @@ func ticketRegex(projects []string) (*regexp.Regexp, error) {
 	return regexp.Compile(regex)
 }
 
-func getJiraIssues(projects []string, commits []*github.Commit) ([]*jira.Issue, error) {
+func getJiraIssues(projects []string, commits []git.Commit) ([]*jira.Issue, error) {
 	re, err := ticketRegex(projects)
 	if err != nil {
 		return nil, err

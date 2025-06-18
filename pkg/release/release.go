@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"sigs.k8s.io/yaml"
 	"text/template"
 	"time"
+
+	"sigs.k8s.io/yaml"
 
 	releasev1alpha1 "github.com/konflux-ci/release-service/api/v1alpha1"
 

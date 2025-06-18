@@ -21,12 +21,12 @@ var updateCmd = &cobra.Command{
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		projects := []string{project, "OCPBUGS"}
-		kRelease, err := konflux.NewRelease(releaseplan, version, projects, tailCommit)
+		kRelease, err := konflux.NewRelease(namespace, releaseplan, version, projects, tailCommit)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
 		}
-		err = release.UpdateRelease(issue, project, version, true, time.Now(), kRelease)
+		err = release.UpdateRelease(issue, project, version, true, time.Now(), kRelease.Release)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err.Error())
 			os.Exit(1)
@@ -43,4 +43,6 @@ func init() {
 	updateCmd.Flags().StringVar(&version, "version", "", "Semver of the release")
 	updateCmd.MarkFlagRequired("version")
 	updateCmd.Flags().StringVar(&tailCommit, "tail", "", "tail commit of the release")
+	updateCmd.Flags().StringVar(&namespace, "namespace", "", "Konflux namespace")
+	updateCmd.MarkFlagRequired("namespace")
 }
