@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -49,10 +51,17 @@ func NewRepo(gitURL string) (Repo, error) {
 }
 
 func NewGithubRepo(owner string, name string) *GithubRepo {
+	client := github.NewClient(nil)
+	token, err := getGithubAPIToken()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "WARNING: unable to access github api token: %s", err)
+	} else {
+		client = client.WithAuthToken(token)
+	}
 	return &GithubRepo{
 		owner:  owner,
 		name:   name,
-		client: github.NewClient(nil),
+		client: client,
 	}
 }
 
@@ -153,4 +162,15 @@ func FindReleaseTail(repo Repo, semver string) (string, error) {
 
 func IsMerge(commit *github.Commit) bool {
 	return len(commit.Parents) > 1
+}
+func getGithubAPIToken() (string, error) {
+	homedir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	creds, err := os.ReadFile(filepath.Join(homedir, ".github/token"))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(creds)), nil
 }

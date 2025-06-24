@@ -165,7 +165,7 @@ func getJIRAAPIToken() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	creds, err := os.ReadFile(filepath.Join(homedir, ".jira/creds"))
+	creds, err := os.ReadFile(filepath.Join(homedir, ".jira/token"))
 	if err != nil {
 		return "", err
 	}
