@@ -7,6 +7,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 
@@ -21,6 +22,7 @@ import (
 
 	"github.com/sebsoto/gojira/pkg/git"
 	"github.com/sebsoto/gojira/pkg/jira"
+	"github.com/sebsoto/gojira/pkg/semver"
 )
 
 // Release contains all information required to describe an upcoming release
@@ -55,7 +57,7 @@ type issue struct {
 	Source string `json:"source"`
 }
 
-func NewRelease(namespace, releaseplan, version string, jiraProjects []string, branchCommit string) (*Release, error) {
+func NewRelease(namespace, releaseplan, version string, jiraProjects []string, baseCommitOverride string) (*Release, error) {
 	config, err := clientconfig.GetConfig()
 	if err != nil {
 		return nil, err
@@ -93,6 +95,7 @@ func NewRelease(namespace, releaseplan, version string, jiraProjects []string, b
 			snapshotCommit = component.Source.GitSource.Revision
 		}
 	}
+	branch := snap.Annotations["build.appstudio.redhat.com/target_branch"]
 	var component applicationv1alpha1.Component
 	err = c.Get(context.Background(), types.NamespacedName{Name: componentName, Namespace: namespace}, &component)
 	if err != nil {
@@ -109,16 +112,22 @@ func NewRelease(namespace, releaseplan, version string, jiraProjects []string, b
 		return nil, err
 	}
 
-	fromSHA := branchCommit
-	if branchCommit == "" {
-		fromSHA, err = git.FindReleaseTail(repo, version)
+	versionSemver, err := semver.New(version)
+	if err != nil {
+		return nil, err
+	}
+	commits := []git.Commit{}
+	if baseCommitOverride != "" {
+		commits, err = repo.ListCommits(snapshotCommit, baseCommitOverride, git.IsMerge)
 		if err != nil {
 			return nil, err
 		}
-	}
-	commits, err := repo.ListCommits(snapshotCommit, fromSHA, git.IsMerge)
-	if err != nil {
-		return nil, err
+	} else {
+		commits, err = commitsSinceLastRelease(repo, *versionSemver, snapshotCommit, branch)
+		if err != nil {
+			return nil, err
+		}
+
 	}
 	jiraTickets, err := getJiraIssues(jiraProjects, commits)
 	if err != nil {
@@ -148,7 +157,7 @@ func (r *Release) PrintContents() {
 	fmt.Printf("-----\n\n")
 	fmt.Printf("%d recent merges not included in release:\n", len(r.MissingMerges))
 	for i, mergeCommit := range r.MissingMerges {
-		fmt.Printf("%d: %s\n", i+1, mergeCommit.GetMessage())
+		fmt.Printf("%d: %s\n", i+1, mergeCommit.Message)
 	}
 	fmt.Printf("-----\n\n")
 	fmt.Printf("Jira issues included in this release:\n")
@@ -269,7 +278,7 @@ func getJiraIssues(projects []string, commits []git.Commit) ([]*jira.Issue, erro
 	}
 	var jiraIssues []string
 	for _, commit := range commits {
-		matches := re.FindAllString(commit.GetMessage(), -1)
+		matches := re.FindAllString(commit.Message, -1)
 		for _, match := range matches {
 			jiraIssues = append(jiraIssues, match)
 		}
@@ -291,4 +300,50 @@ func getJiraIssues(projects []string, commits []git.Commit) ([]*jira.Issue, erro
 		uniqueTickets = append(uniqueTickets, jiraTicket)
 	}
 	return uniqueTickets, nil
+}
+
+// commitsSinceLastRelease returns a list of commits from the given HEAD to either the last tagged release, or from the
+// branching point of the previous release branch, whichever is more recent.
+func commitsSinceLastRelease(repo git.Repo, releaseVersion semver.Semver, head string, branch string) ([]git.Commit, error) {
+	var branchingPoint string
+	var err error
+	previousTag, err := git.FindPreviousTag(repo, releaseVersion)
+	if err != nil {
+		return nil, err
+	}
+	listEnd := previousTag
+	if strings.HasPrefix(branch, "release-4.") {
+		prevBranch, err := decrementReleaseBranch(branch)
+		if err != nil {
+			return nil, err
+		}
+		listEnd, err = repo.MergeBase(prevBranch, head)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	commits, err := repo.ListCommits(head, listEnd, git.IsMerge)
+	if err != nil {
+		return nil, err
+	}
+	// Go through the commit list and remove all commits after the branching point or a previous release tag
+	for i, commit := range commits {
+		if commit.SHA == previousTag || commit.SHA == branchingPoint {
+			return commits[:i], nil
+		}
+	}
+	return commits, nil
+}
+
+func decrementReleaseBranch(branch string) (string, error) {
+	split := strings.Split(branch, "release-4.")
+	if len(split) != 2 {
+		return "", fmt.Errorf("unexpected branch format: %s", branch)
+	}
+	branchSuffix, err := strconv.Atoi(split[1])
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("release-4.%d", branchSuffix-1), nil
 }

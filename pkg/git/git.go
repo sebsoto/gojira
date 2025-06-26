@@ -6,22 +6,24 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/google/go-github/v72/github"
+
+	"github.com/sebsoto/gojira/pkg/semver"
 )
 
 type FilterFunction func(*github.Commit) bool
 
-type Commit interface {
-	GetMessage() string
-	GetSHA() string
+type Commit struct {
+	Message string
+	SHA     string
 }
 
 type Repo interface {
 	GetTags() ([]Tag, error)
 	ListCommits(string, string, FilterFunction) ([]Commit, error)
+	MergeBase(string, string) (string, error)
 }
 
 type Tag struct {
@@ -96,10 +98,14 @@ func (r *GithubRepo) ListCommits(startSHA, endSHA string, filter FilterFunction)
 			return commitList, nil
 		}
 		if !filter(commit.GetCommit()) {
-			commitList = append(commitList, commit.GetCommit())
+			commitList = append(commitList, Commit{
+				Message: commit.GetCommit().GetMessage(),
+				SHA:     commit.GetSHA(),
+			})
 		}
 	}
-	for nextPage := resp.NextPage; nextPage != resp.LastPage; {
+	for nextPage := resp.NextPage; nextPage != resp.LastPage; nextPage = resp.NextPage {
+		fmt.Fprintf(os.Stderr, "checking page: %d/%d\n", resp.NextPage, resp.LastPage)
 		commits, resp, err = r.client.Repositories.ListCommits(context.Background(), r.owner, r.name, &github.CommitsListOptions{
 			SHA: startSHA,
 			ListOptions: github.ListOptions{
@@ -115,54 +121,61 @@ func (r *GithubRepo) ListCommits(startSHA, endSHA string, filter FilterFunction)
 				return commitList, nil
 			}
 			if !filter(commit.GetCommit()) {
-				commitList = append(commitList, commit.GetCommit())
+				commitList = append(commitList, Commit{
+					Message: commit.GetCommit().GetMessage(),
+					SHA:     commit.GetSHA(),
+				})
 			}
 		}
 	}
 	return commitList, nil
 }
 
-func FindReleaseTail(repo Repo, semver string) (string, error) {
+func (r *GithubRepo) MergeBase(sha1, sha2 string) (string, error) {
+	comparison, _, err := r.client.Repositories.CompareCommits(context.Background(), r.owner, r.name, sha1, sha2, nil)
+	if err != nil {
+		return "", err
+	}
+	return comparison.MergeBaseCommit.GetSHA(), nil
+}
+
+// FindPreviousTag returns the commit of the previous tag
+func FindPreviousTag(repo Repo, currentTag semver.Semver) (string, error) {
 	tags, err := repo.GetTags()
 	if err != nil {
 		return "", err
 	}
-	tagMap := make(map[string]string)
+	if currentTag.Patch != 0 {
+		prevTagName := fmt.Sprintf("v%d.%d.%d", currentTag.Major, currentTag.Minor, currentTag.Patch-1)
+		for _, tag := range tags {
+			if tag.Name == prevTagName {
+				fmt.Printf("Tag %s found\nCommit %s\n", tag.Name, tag.Sha)
+				return tag.Sha, nil
+			}
+			return "", fmt.Errorf("no previous tag found")
+		}
+	}
+	var prevTag Tag
+	var prevTagSemver semver.Semver
 	for _, tag := range tags {
-		tagMap[tag.Sha] = tag.Name
-	}
-	prevVersion := ""
-	semverSplit := strings.Split(semver, ".")
-	if len(semverSplit) != 3 {
-		return "", fmt.Errorf("expected a semver of format vX.Y.Z")
-	}
-	if strings.HasSuffix(semver, ".0") {
-		// Use last minor release instead
-		minorVersion, err := strconv.Atoi(semverSplit[1])
+		tagSemver, err := semver.New(tag.Name)
 		if err != nil {
-			return "", err
+			fmt.Fprintf(os.Stderr, "WARNING: unable to parse semver %s: %s\n", tag.Name, err)
+			continue
 		}
-		prevVersion = fmt.Sprintf("%s.%d.0", semverSplit[0], minorVersion-1)
-	} else {
-		patchVersion, err := strconv.Atoi(semverSplit[2])
-		if err != nil {
-			return "", err
-		}
-		prevVersion = fmt.Sprintf("%s.%s.%d", semverSplit[0], semverSplit[1], patchVersion-1)
-	}
-	fmt.Println("looking for " + prevVersion)
-	for _, tag := range tags {
-		if tag.Name == prevVersion {
-			fmt.Printf("Tag %s found\nCommit %s\n", tag.Name, tag.Sha)
-			return tag.Sha, nil
+		if tagSemver.Major == currentTag.Major && tagSemver.Minor == currentTag.Minor-1 && tagSemver.Patch > prevTagSemver.Patch {
+			prevTagSemver = *tagSemver
+			prevTag = tag
+			break
 		}
 	}
-	return "", fmt.Errorf("no valid tag found")
+	return prevTag.Sha, nil
 }
 
 func IsMerge(commit *github.Commit) bool {
 	return len(commit.Parents) > 1
 }
+
 func getGithubAPIToken() (string, error) {
 	homedir, err := os.UserHomeDir()
 	if err != nil {
