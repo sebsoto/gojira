@@ -23,13 +23,7 @@ go build -o gojira
 ## Usage
 
 ```
-# WIP Give information about pending release
-./gojira release status --releaseplan windows-machine-config-operator-10-17-staging --version v10.17.1 --project WINC --namespace windows-machine-conf-tenant
-
-# create JIRA issues to track a new minor release
-./gojira release new --date 2024-05-13 --version 8.1.3 --major false
-
-# List pending releases in the given JIRA project
-./gojira release list --project WINC
+# Output a konflux release object for the release as well as information of all stories included in the release
+$ ./gojira release status --releaseplan windows-machine-config-operator-10-19-prod --project WINC --version v10.19.0 --namespace windows-machine-conf-tenant
 ```
 
