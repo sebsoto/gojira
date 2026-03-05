@@ -210,7 +210,7 @@ func newRelease(component string, jiraIssues []*jira.Issue, releaseplan, snapsho
 	}
 
 	releaseType := "RHBA"
-	var cves []cve
+	cves := []cve{}
 	if len(cveNames) != 0 {
 		releaseType = "RHSA"
 		for _, cveName := range cveNames {
