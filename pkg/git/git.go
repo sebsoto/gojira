@@ -152,8 +152,8 @@ func FindPreviousTag(repo Repo, currentTag semver.Semver) (string, error) {
 				fmt.Printf("Tag %s found\nCommit %s\n", tag.Name, tag.Sha)
 				return tag.Sha, nil
 			}
-			return "", fmt.Errorf("no previous tag found")
 		}
+		return "", fmt.Errorf("no previous tag found")
 	}
 	var prevTag Tag
 	var prevTagSemver semver.Semver
